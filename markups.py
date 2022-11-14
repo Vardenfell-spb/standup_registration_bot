@@ -90,23 +90,20 @@ def delete_markup(button):
 def user_settings(call_user, user, botton=None):
     def bool_emoji(value):
         if value:
-            return '✔'
+            return '◉ '
         else:
             return ''
 
     username = InlineKeyboardButton(f'{user.username}', url=f'tg://user?id={user.user_id}')
     roll_multiplier_minus = InlineKeyboardButton(
-        f'▽ Бонус ∷ {user.roll_multiplier} ∷',
-        callback_data=f'user_set {user.username} roll_multiplier {user.roll_multiplier - 1}')
+        f'〘Бонус: {user.roll_multiplier}〙 ▽',
+        callback_data=f'user_set {user.username} roll_multiplier sub')
     roll_multiplier_plus = InlineKeyboardButton(
-        f'△', callback_data=f'user_set {user.username} roll_multiplier {user.roll_multiplier + 1}')
-    if user.reroll - 1 > 0:
-        user_reroll_minus = user.reroll - 1
-    else:
-        user_reroll_minus = 0
-    reroll_minus = InlineKeyboardButton(f'▽ Повтор ∷ {user.reroll} ∷',
-                                        callback_data=f'user_set {user.username} reroll {user_reroll_minus}')
-    reroll_plus = InlineKeyboardButton(f'△', callback_data=f'user_set {user.username} reroll {user.reroll + 1}')
+        f'△', callback_data=f'user_set {user.username} roll_multiplier add')
+
+    reroll_minus = InlineKeyboardButton(f'〘Повтор: {user.reroll}〙 ▽',
+                                        callback_data=f'user_set {user.username} reroll sub')
+    reroll_plus = InlineKeyboardButton(f'△', callback_data=f'user_set {user.username} reroll add')
     admin = InlineKeyboardButton(f'{bool_emoji(user.admin)} Админ',
                                  callback_data=f'user_set {user.username} admin {not user.admin}')
     moderator = InlineKeyboardButton(f'{bool_emoji(user.moderator)} Модератор',

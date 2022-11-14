@@ -1,2 +1,4 @@
 # telegram bot token
 TOKEN = ''
+# telegram user ID for default bot admin
+DEFAULT_ADMIN = 0

@@ -47,6 +47,7 @@ class Bot:
             'help': self.help_command,
             'message_delete': self.message_delete,
             'user_set': self.user_settings,
+            'load_users': self.load_users,
         }
 
     def run(self):
@@ -58,6 +59,7 @@ class Bot:
         dispatcher.add_handler(CommandHandler('start', self.start))
         dispatcher.add_handler(CommandHandler('help', self.help_command))
         dispatcher.add_handler(CommandHandler('load_events', self.load_events))
+        dispatcher.add_handler(CommandHandler('load_users', self.load_users))
         dispatcher.add_handler(CallbackQueryHandler(self.button))
         dispatcher.add_handler(MessageHandler(Filters.text, self.handle_messages))
         updater.start_polling()
@@ -76,7 +78,7 @@ class Bot:
         """
         user = User(user_id, username, self.db)
         user.load()
-        if user.user_id == 107801655:
+        if user.user_id == DEFAULT_ADMIN_ID:
             user.admin = True
             user.moderator = True
             # user.roll_multiplier = -5
@@ -99,8 +101,6 @@ class Bot:
                 username = update.message.text[6:]
                 button = ['user_set', username, 'load', 'None']
                 self.user_settings(update, context, button)
-            else:
-                self.handle_text(update, context, user)
 
     def start(self, update: Update, context: CallbackContext):
         # user = self.user_check(update)
@@ -140,11 +140,17 @@ class Bot:
                 context.bot.send_message(update.effective_chat.id, message, reply_markup=markup)
             else:
                 if command == 'roll_multiplier':
-                    database_user.roll_multiplier = int(value)
+                    if value == 'sub':
+                        database_user.roll_multiplier -= 1
+                    else:
+                        database_user.roll_multiplier += 1
                     database_user.save()
                     user_update(database_user)
                 elif command == 'reroll':
-                    database_user.reroll = int(value)
+                    if database_user.reroll > 0 and value == 'sub':
+                        database_user.reroll -= 1
+                    else:
+                        database_user.reroll += 1
                     database_user.save()
                     user_update(database_user)
                 elif command == 'admin':
@@ -165,6 +171,9 @@ class Bot:
                     user_update(database_user)
                 markup = markups['user_settings'](user, database_user)
                 return [message, markup, None]
+
+    def load_users(self, update: Update, context: CallbackContext, button=None):
+        pass
 
     def pages_handler(self, page_list, func_name, button):
         if button:

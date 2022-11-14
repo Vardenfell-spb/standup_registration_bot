@@ -134,7 +134,7 @@ class DatabaseManager:
                 if registration.user.user_id in win_id and not registration.user.fix:
                     if registration.user.roll_multiplier > 0:
                         user = registration.user.get()
-                        user.roll_multiplier -= 1
+                        user.roll_multiplier = 0
                         user.save()
                 if registration.user.user_id in lose_id and not registration.user.fix:
                     user = registration.user.get()
