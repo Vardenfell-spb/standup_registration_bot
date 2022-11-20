@@ -128,12 +128,15 @@ class Bot:
         elif value == 'False':
             value = False
         user = self.user_check(update)
+        if not username:
+            username = user.username
         database_user = self.db.load_username(username)
 
         def user_update(user):
             if user.user_id in self.users:
                 self.users[user.user_id].load()
-        if database_user:
+
+        if database_user and (user.admin and user.moderator):
             message = 'Настройки'
             if command == 'load':
                 markup = markups['user_settings'](user, database_user)
@@ -171,9 +174,18 @@ class Bot:
                     user_update(database_user)
                 markup = markups['user_settings'](user, database_user)
                 return [message, markup, None]
+        elif database_user and (not user.admin and not user.moderator):
+            message = f'Свойства юзера:\nБонус: {database_user.roll_multiplier}\nПовтор: {database_user.reroll}'
+            context.bot.send_message(update.effective_chat.id, message)
 
     def load_users(self, update: Update, context: CallbackContext, button=None):
-        pass
+        user = self.user_check(update)
+        users = self.db.load_users(user)
+        full_message = self.pages_handler(users, 'load_users', button)
+        if button:
+            return full_message
+        else:
+            context.bot.send_message(update.effective_chat.id, full_message[0], reply_markup=full_message[1])
 
     def pages_handler(self, page_list, func_name, button):
         if button:
@@ -352,7 +364,7 @@ class Bot:
         users = sorted(event.users, key=lambda u: event.users[u]['roll'], reverse=True)
         active_users = []
         for user in users:
-            if not event.users[user]['cancel']:
+            if not event.users[user]['cancel'] and not event.users[user]['ban']:
                 active_users.append(user)
         if len(active_users) > 0:
             users_rolls += '\n⊶'

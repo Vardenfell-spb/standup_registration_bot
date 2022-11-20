@@ -43,6 +43,35 @@ class DatabaseManager:
         else:
             self.create_user(user)
 
+    def load_users(self, user):
+        # Update all users data from DB
+        database_user_list = UserDB.select()
+        page_size = 30
+        if database_user_list:
+            user_list = [['Пользователи:\n⊶']]
+            for database_user in database_user_list:
+                if (database_user.registration or database_user.admin or database_user.moderator) or \
+                        (user.admin or user.moderator):
+                    line = f'\n🎲x{database_user.roll_multiplier} ⟲{database_user.reroll} ' \
+                           f' ✎{len(database_user.registration)} :{database_user.username}'
+                    if database_user.admin:
+                        line += f' ♚'
+                    elif database_user.moderator:
+                        line += f' ♔'
+                    elif database_user.ban:
+                        line += f' ✖'
+                    last_list = len(user_list) - 1
+                    if page_size < len(user_list[last_list]):
+                        user_list.append(line)
+                    else:
+                        user_list[last_list].append(line)
+            message_list = []
+            for num, list in enumerate(user_list):
+                message_list.append([''])
+                for string in list:
+                    message_list[num] += string
+            return message_list
+
     def load_username(self, username):
         user = UserDB.select().where(UserDB.username == username)
         if user:
@@ -107,6 +136,7 @@ class DatabaseManager:
                                 'username': reg.user.username,
                                 'roll': reg.roll,
                                 'cancel': reg.cancel,
+                                'ban': reg.user.ban,
                             }
                         event.users = users
                     events[event.event_id] = event
@@ -120,7 +150,7 @@ class DatabaseManager:
             users_ids = sorted(event.users, key=lambda u: event.users[u]['roll'], reverse=True)
             active_users_id = []
             for user_id in users_ids:
-                if not event.users[user_id]['cancel']:
+                if not event.users[user_id]['cancel'] and not event.users[user_id]['ban']:
                     active_users_id.append(user_id)
             win_id = []
             lose_id = []
@@ -140,6 +170,11 @@ class DatabaseManager:
                     user = registration.user.get()
                     user.roll_multiplier += 1
                     user.save()
+                if registration.cancel:
+                    if registration.user.roll_multiplier > 0:
+                        user = registration.user.get()
+                        user.roll_multiplier -= 1
+                        user.save()
 
     def delete_event(self, event, user):
         if user.admin or user.moderator:
