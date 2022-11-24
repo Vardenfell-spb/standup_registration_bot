@@ -20,11 +20,12 @@ try:
 except ImportError:
     exit('Скопируйте telegram_token.py.deafault как telegram_token.py и укажите в нем токен')
 
+logging.getLogger("telegram.vendor.ptb_urllib3.urllib3").setLevel(logging.CRITICAL)
 log = logging.getLogger()
+logging.basicConfig(filename='logging.log', encoding='utf-8', level=logging.INFO)
 stream_handler = logging.StreamHandler()
-stream_handler.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
+stream_handler.setFormatter(logging.Formatter("%(message)s"))
 log.addHandler(stream_handler)
-log.setLevel(logging.DEBUG)
 stream_handler.setLevel(logging.INFO)
 
 
@@ -72,26 +73,36 @@ class Bot:
         except ConnectionError:
             log.exception(f'Ошибка при получении ивента')
 
-    def new_user(self, user_id, username):
+    def new_user(self, user):
         """
         :return: create new user for keeping repeating cards, load cards from database for the user id
         """
-        user = User(user_id, username, self.db)
+        name = ''
+        if user.first_name:
+            name += f'({user.first_name}'
+            if user.last_name:
+                name += f' {user.last_name})'
+            else:
+                name += f')'
+
+        username = f'{user.username} {name}'
+        user = User(user.id, username, self.db)
         user.load()
+        user.save()
         if user.user_id == DEFAULT_ADMIN_ID:
             user.admin = True
             user.moderator = True
-            # user.roll_multiplier = -5
+            user.roll_multiplier = -1
             # user.reroll = 9999
             user.save()
-        self.users[user_id] = user
-        log.info('User is created, id: %s', user_id)
+        self.users[user.user_id] = user
+        log.info('User is created, id: %s', user.user_id)
 
     def on_event(self, update, context):
         user_id = update.message.from_user.id
         if update:
             if user_id not in self.users:
-                self.new_user(user_id, update.message.from_user.username)
+                self.new_user(update.message.from_user)
             user = self.users[user_id]
             if update.message.text[:6] == '/event':
                 if user.admin or user.moderator:
@@ -99,7 +110,8 @@ class Bot:
                     self.create_event(update, context, options=options)
             elif update.message.text[:5] == '/user':
                 username = update.message.text[6:]
-                button = ['user_set', username, 'load', 'None']
+                user_id = self.db.get_id_for_username(username)
+                button = ['user_set', user_id, 'load', 'None']
                 self.user_settings(update, context, button)
 
     def start(self, update: Update, context: CallbackContext):
@@ -111,16 +123,16 @@ class Bot:
         if update.message:
             user_id = update.message.from_user.id
             if user_id not in self.users:
-                self.new_user(update.message.from_user.id, update.message.from_user.username)
+                self.new_user(update.message.from_user)
         elif update.callback_query:
             user_id = update.callback_query.from_user.id
             if user_id not in self.users:
-                self.new_user(update.callback_query.from_user.id, update.callback_query.from_user.username)
+                self.new_user(update.callback_query.from_user)
         if user_id in self.users:
             return self.users[user_id]
 
     def user_settings(self, update, context, button):
-        username = button[1]
+        user_id = button[1]
         command = button[2]
         value = button[3]
         if value == 'True':
@@ -128,9 +140,9 @@ class Bot:
         elif value == 'False':
             value = False
         user = self.user_check(update)
-        if not username:
-            username = user.username
-        database_user = self.db.load_username(username)
+        if not user_id:
+            user_id = user.user_id
+        database_user = self.db.load_user_id(user_id)
 
         def user_update(user):
             if user.user_id in self.users:
@@ -274,16 +286,18 @@ class Bot:
                 if event_id in events_ids:
                     event = self.events[event_id]
                 else:
-                    event = self.events[events_ids[0]]
                     event_id = int(events_ids[0])
                     button = ['load_events', event_id, 'load']
+                    return self.load_events(update, context, button)
                 return_button = ['load_events', event_id, 'load']
                 if button[2] == 'roll':
                     if user.user_id not in self.events[event_id].users or user.reroll > 0:
                         if user.ban:
                             context.bot.send_message(update.effective_chat.id, 'Как-нибудь в другой раз')
-                        else:
+                        elif self.events[event_id].status == 'open':
                             return self.roll(update, context, event_id, user)
+                        else:
+                            return self.load_events(update, context, return_button)
                 elif button[2] == 'close':
                     self.db.close_event(event, user)
                     self.users = defaultdict(def_value)
@@ -300,7 +314,7 @@ class Bot:
                         self.db.registration(event, user, roll, cancel=not event.users[user.user_id]['cancel'])
                     return self.load_events(update, context, return_button)
                 elif event_id in events_ids:
-                    markup = markups['event_markup'](events=self.events, user=user, button=button)
+                    markup = markups['event_markup'](events=self.events, user=user, button=return_button)
                     message = self.event_message(user, self.events[event_id])
                     return [message, markup, None]
                 else:
@@ -313,7 +327,7 @@ class Bot:
         else:
             # no one event
             if button:
-                message = 'Регистрация на мероприятие закрыта'
+                message = 'Нет мероприятий'
                 return [message, None, None]
             else:
                 context.bot.send_message(update.effective_chat.id, 'Нет мероприятий')
@@ -343,6 +357,7 @@ class Bot:
                 f'{another_rolls}',
                 reply_markup=markups['message_delete'](f'🎲 {sorted_rolls[0]}')
             )
+            log.info(f'{datetime.datetime.now()} roll: id:{user.user_id} roll:{sorted_rolls}')
             if user.user_id in event.users:
                 if user.reroll > 0:
                     user.reroll -= 1

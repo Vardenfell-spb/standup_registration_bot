@@ -97,21 +97,21 @@ def user_settings(call_user, user, botton=None):
     username = InlineKeyboardButton(f'{user.username}', url=f'tg://user?id={user.user_id}')
     roll_multiplier_minus = InlineKeyboardButton(
         f'〘Бонус: {user.roll_multiplier}〙 ▽',
-        callback_data=f'user_set {user.username} roll_multiplier sub')
+        callback_data=f'user_set {user.user_id} roll_multiplier sub')
     roll_multiplier_plus = InlineKeyboardButton(
-        f'△', callback_data=f'user_set {user.username} roll_multiplier add')
+        f'△', callback_data=f'user_set {user.user_id} roll_multiplier add')
 
     reroll_minus = InlineKeyboardButton(f'〘Повтор: {user.reroll}〙 ▽',
-                                        callback_data=f'user_set {user.username} reroll sub')
-    reroll_plus = InlineKeyboardButton(f'△', callback_data=f'user_set {user.username} reroll add')
+                                        callback_data=f'user_set {user.user_id} reroll sub')
+    reroll_plus = InlineKeyboardButton(f'△', callback_data=f'user_set {user.user_id} reroll add')
     admin = InlineKeyboardButton(f'{bool_emoji(user.admin)} Админ',
-                                 callback_data=f'user_set {user.username} admin {not user.admin}')
+                                 callback_data=f'user_set {user.user_id} admin {not user.admin}')
     moderator = InlineKeyboardButton(f'{bool_emoji(user.moderator)} Модератор',
-                                     callback_data=f'user_set {user.username} moderator {not user.moderator}')
+                                     callback_data=f'user_set {user.user_id} moderator {not user.moderator}')
     ban = InlineKeyboardButton(f'{bool_emoji(user.ban)} Бан',
-                               callback_data=f'user_set {user.username} ban {not user.ban}')
+                               callback_data=f'user_set {user.user_id} ban {not user.ban}')
     fix = InlineKeyboardButton(f'{bool_emoji(user.fix)} Заморозка бонуса',
-                               callback_data=f'user_set {user.username} fix {not user.fix}')
+                               callback_data=f'user_set {user.user_id} fix {not user.fix}')
     markup_buttons = [
         [username],
         [roll_multiplier_minus, roll_multiplier_plus],

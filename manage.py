@@ -52,8 +52,12 @@ class DatabaseManager:
             for database_user in database_user_list:
                 if (database_user.registration or database_user.admin or database_user.moderator) or \
                         (user.admin or user.moderator):
+                    if user.admin or user.moderator:
+                        at = '@'
+                    else:
+                        at = ''
                     line = f'\n🎲x{database_user.roll_multiplier} ⟲{database_user.reroll} ' \
-                           f' ✎{len(database_user.registration)} :{database_user.username}'
+                           f' ✎{len(database_user.registration)} :{at}{database_user.username}'
                     if database_user.admin:
                         line += f' ♚'
                     elif database_user.moderator:
@@ -66,17 +70,24 @@ class DatabaseManager:
                     else:
                         user_list[last_list].append(line)
             message_list = []
-            for num, list in enumerate(user_list):
+            for num, line in enumerate(user_list):
                 message_list.append([''])
-                for string in list:
+                for string in line:
                     message_list[num] += string
             return message_list
 
-    def load_username(self, username):
-        user = UserDB.select().where(UserDB.username == username)
+    def load_user_id(self, user_id):
+        user = UserDB.select().where(UserDB.user_id == user_id)
         if user:
             user = user.get()
             return user
+
+    def get_id_for_username(self, username):
+        users = UserDB.select()
+        for user in users:
+            if user.username.split()[0] == username:
+                user_id = user.user_id
+                return user_id
 
     def create_user(self, user):
         # Create user in DB from bot user class
@@ -154,27 +165,24 @@ class DatabaseManager:
                     active_users_id.append(user_id)
             win_id = []
             lose_id = []
-            for num, user in enumerate(active_users_id):
+            for num, active_user in enumerate(active_users_id):
                 if event.attendees > num:
-                    win_id.append(user)
+                    win_id.append(active_user)
                 else:
-                    lose_id.append(user)
+                    lose_id.append(active_user)
             registrations = Registration.select().where(Registration.event == database_event)
             for registration in registrations:
                 if registration.user.user_id in win_id and not registration.user.fix:
                     if registration.user.roll_multiplier > 0:
-                        user = registration.user.get()
-                        user.roll_multiplier = 0
-                        user.save()
+                        registration.user.roll_multiplier = 0
+                        registration.user.save()
                 if registration.user.user_id in lose_id and not registration.user.fix:
-                    user = registration.user.get()
-                    user.roll_multiplier += 1
-                    user.save()
+                    registration.user.roll_multiplier += 1
+                    registration.user.save()
                 if registration.cancel:
                     if registration.user.roll_multiplier > 0:
-                        user = registration.user.get()
-                        user.roll_multiplier -= 1
-                        user.save()
+                        registration.user.roll_multiplier -= 1
+                        registration.user.save()
 
     def delete_event(self, event, user):
         if user.admin or user.moderator:
