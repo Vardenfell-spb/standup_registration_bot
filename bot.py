@@ -44,6 +44,7 @@ class Bot:
         self.bot = Updater(token=token)
         self.db = DatabaseManager()
         self.button_handlers = {
+            'edit_event': self.edit_event,
             'load_events': self.load_events,
             'help': self.help_command,
             'message_delete': self.message_delete,
@@ -148,11 +149,13 @@ class Bot:
             if user.user_id in self.users:
                 self.users[user.user_id].load()
 
-        if database_user and (user.admin and user.moderator):
+        if database_user and user.admin:
             message = 'Настройки'
             if command == 'load':
                 markup = markups['user_settings'](user, database_user)
                 context.bot.send_message(update.effective_chat.id, message, reply_markup=markup)
+            elif command == 'user_list':
+                return self.load_users_set(update, context, button=None)
             else:
                 if command == 'roll_multiplier':
                     if value == 'sub':
@@ -186,18 +189,32 @@ class Bot:
                     user_update(database_user)
                 markup = markups['user_settings'](user, database_user)
                 return [message, markup, None]
-        elif database_user and (not user.admin and not user.moderator):
+        elif database_user and not user.admin:
             message = f'Свойства юзера:\nБонус: {database_user.roll_multiplier}\nПовтор: {database_user.reroll}'
             context.bot.send_message(update.effective_chat.id, message)
 
     def load_users(self, update: Update, context: CallbackContext, button=None):
         user = self.user_check(update)
-        users = self.db.load_users(user)
-        full_message = self.pages_handler(users, 'load_users', button)
+        users = self.db.load_user_list(user)
+        if user.admin or user.moderator:
+            # full_message = self.pages_handler(users, 'load_users', button)
+            full_message = self.load_users_set(update, context, button)
+        else:
+            full_message = self.pages_handler(users, 'load_users', button)
         if button:
             return full_message
         else:
             context.bot.send_message(update.effective_chat.id, full_message[0], reply_markup=full_message[1])
+
+    def load_users_set(self, update, context, button):
+        users = self.db.load_users()
+        if users:
+            if button and button[1] == 'load':
+                return self.user_settings(update, context, button=['user_set', button[2], 'None', 'None'])
+            else:
+                message = 'Пользователи:'
+                reply_markup = markups['load_users_set'](users, button)
+                return [message, reply_markup, None]
 
     def pages_handler(self, page_list, func_name, button):
         if button:
@@ -298,21 +315,24 @@ class Bot:
                             return self.roll(update, context, event_id, user)
                         else:
                             return self.load_events(update, context, return_button)
-                elif button[2] == 'close':
+                elif button[2] == 'close' and (user.admin or user.moderator):
                     self.db.close_event(event, user)
                     self.users = defaultdict(def_value)
                     return self.load_events(update, context, return_button)
-                elif button[2] == 'delete':
+                elif button[2] == 'delete' and (user.admin or user.moderator):
                     self.db.delete_event(event, user)
                     return self.load_events(update, context, return_button)
-                elif button[2] == 'archiving':
+                elif button[2] == 'archiving' and (user.admin or user.moderator):
                     self.db.archiving_event(event, user)
                     return self.load_events(update, context, return_button)
                 elif button[2] == 'cancel':
                     if event.status == 'open':
                         roll = event.users[user.user_id]['roll']
-                        self.db.registration(event, user, roll, cancel=not event.users[user.user_id]['cancel'])
+                        self.db.registration(event, user, roll,
+                                             cancel=not event.users[user.user_id]['cancel'])
                     return self.load_events(update, context, return_button)
+                elif button[2] == 'edit' and (user.admin or user.moderator):
+                    return self.edit_event(update, context, button)
                 elif event_id in events_ids:
                     markup = markups['event_markup'](events=self.events, user=user, button=return_button)
                     message = self.event_message(user, self.events[event_id])
@@ -355,9 +375,9 @@ class Bot:
             context.bot.send_message(
                 update.effective_chat.id,
                 f'{another_rolls}',
-                reply_markup=markups['message_delete'](f'🎲 {sorted_rolls[0]}')
+                reply_markup=markups['message_delete'](f'🎲 {sorted_rolls[0]} {user.username}')
             )
-            log.info(f'{datetime.datetime.now()} roll: id:{user.user_id} roll:{sorted_rolls}')
+            log.info(f'{datetime.datetime.now()} roll: {sorted_rolls} :{user.user_id}:{user.username}')
             if user.user_id in event.users:
                 if user.reroll > 0:
                     user.reroll -= 1
@@ -381,21 +401,70 @@ class Bot:
         for user in users:
             if not event.users[user]['cancel'] and not event.users[user]['ban']:
                 active_users.append(user)
+        if event.status == 'closed':
+            event_info = '\n≺Регистрация закрыта≻'
+        elif event.status == 'open':
+            event_info = '\n≺Регистрация открыта≻'
+        else:
+            event_info = ''
+
         if len(active_users) > 0:
-            users_rolls += '\n⊶'
-            if len(active_users) < event.attendees:
-                list_lenght = len(active_users)
-            else:
-                list_lenght = event.attendees
-            for num in range(list_lenght):
-                user = active_users[num]
+            # users_rolls += '\n'
+            for num, active_user in enumerate(active_users):
+                user = active_user
                 user_roll = event.users[user]['roll']
                 username = event.users[user]['username']
                 if message_user.admin or message_user.moderator:
                     username = '@' + username
-                users_rolls += f'\n{user_roll} - {username}'
-        message = f'{event.title}\nУчастников: {event.attendees}\nДата: {event.date}{users_rolls}'
+                if user == message_user.user_id:
+                    you = '⊢ '
+                else:
+                    you = ''
+                if num < event.attendees:
+                    users_rolls += f'\n{you}{num + 1} ≺{user_roll}≻ {username}'
+                else:
+                    if user == message_user.user_id:
+                        users_rolls += f'\n⋮\n{you}{num + 1} ≺{user_roll}≻ {username}'
+            users_rolls += '\n⋮'
+
+        message = f'{event.title}\n∙ {event.attendees} мест {event.date.day}.{event.date.month}.{event.date.year}' \
+                  f'{event_info}{users_rolls}'
         return message
+
+    def edit_event(self, update, context, button=None):
+        user = self.user_check(update)
+        self.events = self.db.load_events(user)
+        func = button[0]
+        event_id = button[1]
+        if not user.admin and not user.moderator:
+            message = 'Нет доступа'
+            return [message, None, None]
+        event = self.events[int(event_id)]
+        if func == 'edit_event':
+            command = button[2]
+            user_id = button[3]
+            if command == 'delete':
+                self.db.delete_registration(event_id, user_id)
+            elif command == 'cancel':
+                user = self.db.load_user_id(user_id)
+                roll = event.users[user.user_id]['roll']
+                self.db.registration(event, user, roll, cancel=not event.users[user.user_id]['cancel'])
+            elif command == 'load_events':
+                return self.load_events(update, context, ['load_events', event_id, 'load'])
+            elif command == 'attendees_add' or command == 'attendees_sub':
+                if command == 'attendees_add':
+                    event.attendees += 1
+                elif event.attendees > 0:
+                    event.attendees -= 1
+                self.db.edit_event(event)
+        else:
+            button = ['edit_event', event.event_id, 'None', 'None', 0]
+        self.events = self.db.load_events(user)
+        event = self.events[int(event_id)]
+        message = f'≺Редактирование ивента≻\n{event.title}\n' \
+                  f'∙ {event.attendees} мест {event.date.day}.{event.date.month}.{event.date.year}'
+        markup = markups['event_edit_markup'](event=event, button=button)
+        return [message, markup, None]
 
     def button(self, update: Update, context: CallbackContext):
         # buttons callback handler

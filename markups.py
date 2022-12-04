@@ -112,7 +112,10 @@ def user_settings(call_user, user, botton=None):
                                callback_data=f'user_set {user.user_id} ban {not user.ban}')
     fix = InlineKeyboardButton(f'{bool_emoji(user.fix)} Заморозка бонуса',
                                callback_data=f'user_set {user.user_id} fix {not user.fix}')
+    user_list = InlineKeyboardButton(f'◁◁ Список пользователей',
+                                     callback_data=f'user_set {user.user_id} user_list None')
     markup_buttons = [
+        [user_list],
         [username],
         [roll_multiplier_minus, roll_multiplier_plus],
         [reroll_minus, reroll_plus],
@@ -161,8 +164,12 @@ def event_markup(events, user, button=None):
         elif event.status == 'closed':
             new_buttons.append(InlineKeyboardButton(
                 'Архив', callback_data=f'{func_name} {event.event_id} archiving'))
-        new_buttons.append(InlineKeyboardButton(
-            'Удалить', cancel_button, callback_data=f'{func_name} {event.event_id} delete'))
+        if event.status == 'archived':
+            new_buttons.append(InlineKeyboardButton(
+                'Удалить', cancel_button, callback_data=f'{func_name} {event.event_id} delete'))
+        else:
+            new_buttons.append(InlineKeyboardButton(
+                'Участники', cancel_button, callback_data=f'{func_name} {event.event_id} edit'))
     if event.status == 'open':
         if user.user_id in event.users:
             roll_value = event.users[user.user_id]['roll']
@@ -191,6 +198,85 @@ def event_markup(events, user, button=None):
     return message_markup
 
 
+def event_edit_markup(event, button):
+    users = event.users
+    page = int(button[4])
+    page_size = 10
+    user_pages = [[]]
+    for user_key in users:
+        if len(user_pages[len(user_pages) - 1]) < page_size:
+            user_pages[len(user_pages) - 1].append(users[user_key])
+        else:
+            user_pages.append([users[user_key]])
+    user_page = user_pages[page]
+    buttons = [[InlineKeyboardButton(f'◁◁ {event.title}',
+                                     callback_data=f'load_events {event.event_id} load')],
+               [InlineKeyboardButton(f'〘Мест: {event.attendees}〙 ▽',
+                                     callback_data=f'edit_event {event.event_id} attendees_sub None {page}'),
+                InlineKeyboardButton(f'△',
+                                     callback_data=f'edit_event {event.event_id} attendees_add None {page}'), ]]
+    for event_user in user_page:
+        username = event_user['username']
+        user_id = event_user['user_id']
+        roll = event_user['roll']
+        if event_user['cancel']:
+            cancel_button_text = f'Вернуть 🚫 {roll}'
+        else:
+            cancel_button_text = f'Отмена 🎲 {roll}'
+        buttons.append([InlineKeyboardButton(f'❌ {username}',
+                                             callback_data=f'edit_event {event.event_id} delete {user_id} {page}'),
+                        InlineKeyboardButton(f'{cancel_button_text}',
+                                             callback_data=f'edit_event {event.event_id} cancel {user_id} {page}'), ])
+    if len(user_pages) > 1:
+        buttons.append([
+            InlineKeyboardButton(
+                '◁', callback_data=f'edit_event {event.event_id} load None {list_step(user_pages, page, -1)}'),
+            InlineKeyboardButton(
+                '▷', callback_data=f'edit_event {event.event_id} load None {list_step(user_pages, page, 1)}'), ])
+    message_markup = InlineKeyboardMarkup(buttons)
+    return message_markup
+
+
+def load_users_set(users, button):
+    if not button:
+        page = 0
+    else:
+        page = int(button[2])
+    buttons = []
+    page_size = 10
+    for num, user in enumerate(users):
+        status = ''
+        if user.admin:
+            status += f'♚'
+        elif user.moderator:
+            status += f'♔'
+        if user.ban:
+            status += f'✖'
+        button_text = f'{num + 1}: {user.roll_multiplier}⇧{user.reroll}♡{len(user.registration)}✎ {status}: ' \
+                      f'{user.username}' + '.' * 100
+        buttons.append([InlineKeyboardButton(button_text, callback_data=f'load_users load {user.user_id}')])
+    button_pages = [[]]
+    for list_button in buttons:
+        if len(button_pages[len(button_pages) - 1]) < page_size:
+            button_pages[len(button_pages) - 1].append(list_button)
+        else:
+            button_pages.append([list_button])
+
+    if not page < len(button_pages):
+        page = 0
+    buttons = button_pages[page]
+    if len(button_pages) > 1:
+        buttons.append([
+            InlineKeyboardButton(
+                '◁', callback_data=f'load_users None {list_step(button_pages, page, -1)}'),
+            InlineKeyboardButton(
+                f'{page + 1}', callback_data=f'load_users None {page}'),
+            InlineKeyboardButton(
+                '▷', callback_data=f'load_users None {list_step(button_pages, page, 1)}')])
+    message_markup = InlineKeyboardMarkup(buttons)
+    return message_markup
+
+
 markups = {'start': markup_start,
            'user_settings': user_settings,
            'create': markup_create,
@@ -199,4 +285,6 @@ markups = {'start': markup_start,
            'page_markup': page_markup,
            'message_delete': message_delete,
            'event_markup': event_markup,
+           'event_edit_markup': event_edit_markup,
+           'load_users_set': load_users_set,
            }

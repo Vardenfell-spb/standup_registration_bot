@@ -43,30 +43,34 @@ class DatabaseManager:
         else:
             self.create_user(user)
 
-    def load_users(self, user):
+    def load_users(self):
+        database_user_list = UserDB.select()
+        return database_user_list
+
+    def load_user_list(self, user):
         # Update all users data from DB
         database_user_list = UserDB.select()
         page_size = 30
         if database_user_list:
-            user_list = [['Пользователи:\n⊶']]
+            user_list = [['Пользователи:']]
             for database_user in database_user_list:
                 if (database_user.registration or database_user.admin or database_user.moderator) or \
-                        (user.admin or user.moderator):
+                        (user.admin or user.moderator) or database_user.roll_multiplier != 0:
                     if user.admin or user.moderator:
                         at = '@'
                     else:
                         at = ''
-                    line = f'\n🎲x{database_user.roll_multiplier} ⟲{database_user.reroll} ' \
-                           f' ✎{len(database_user.registration)} :{at}{database_user.username}'
+                    line = f'\n{database_user.roll_multiplier}⇧{database_user.reroll}♡' \
+                           f'{len(database_user.registration)}✎: {at}{database_user.username}'
                     if database_user.admin:
                         line += f' ♚'
                     elif database_user.moderator:
                         line += f' ♔'
-                    elif database_user.ban:
-                        line += f' ✖'
+                    # elif database_user.ban:
+                    #     line += f' ✖'
                     last_list = len(user_list) - 1
                     if page_size < len(user_list[last_list]):
-                        user_list.append(line)
+                        user_list.append([line])
                     else:
                         user_list[last_list].append(line)
             message_list = []
@@ -127,11 +131,16 @@ class DatabaseManager:
             log.exception(f'Ошибка при записи в БД: {error}')
             return False
 
+    def edit_event(self, event):
+        database_event = EventDB.select().where(EventDB.event_id == event.event_id).get()
+        database_event.attendees = event.attendees
+        database_event.save()
+
     def load_events(self, user):
-        event_list = EventDB.select().where(EventDB.date > datetime.datetime.now())
+        event_list = EventDB.select()
         if event_list:
             events = {}
-            for database_event in event_list:
+            for database_event in reversed(event_list):
                 if database_event.status != 'archived' or user.moderator or user.admin:
                     event = Event(
                         title=database_event.title,
@@ -148,6 +157,7 @@ class DatabaseManager:
                                 'roll': reg.roll,
                                 'cancel': reg.cancel,
                                 'ban': reg.user.ban,
+                                'user_id': reg.user.user_id,
                             }
                         event.users = users
                     events[event.event_id] = event
@@ -225,6 +235,16 @@ class DatabaseManager:
                 return True
             else:
                 return False
+
+    def delete_registration(self, event_id, user_id):
+        database_event = EventDB.select().where(EventDB.event_id == event_id)
+        database_user = UserDB.select().where(UserDB.user_id == user_id)
+        registration = Registration.select().where(
+            (Registration.user == database_user) & (Registration.event == database_event)
+        )
+        if registration:
+            registration = registration.get()
+            registration.delete_instance()
 
 
 if __name__ == '__main__':
