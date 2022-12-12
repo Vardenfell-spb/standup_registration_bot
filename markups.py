@@ -252,7 +252,7 @@ def load_users_set(users, button):
             status += f'♔'
         if user.ban:
             status += f'✖'
-        button_text = f'{num + 1}: {user.roll_multiplier}⇧{user.reroll}♡{len(user.registration)}✎ {status}: ' \
+        button_text = f'{num + 1}: {user.roll_multiplier}⇧ {user.reroll}♡ {len(user.registration)}✐ {status}: ' \
                       f'{user.username}' + '.' * 100
         buttons.append([InlineKeyboardButton(button_text, callback_data=f'load_users load {user.user_id}')])
     button_pages = [[]]

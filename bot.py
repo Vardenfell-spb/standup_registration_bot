@@ -21,6 +21,7 @@ except ImportError:
     exit('Скопируйте telegram_token.py.deafault как telegram_token.py и укажите в нем токен')
 
 logging.getLogger("telegram.vendor.ptb_urllib3.urllib3").setLevel(logging.CRITICAL)
+logging.getLogger("telegram.ext.dispatcher").setLevel(logging.CRITICAL)
 log = logging.getLogger()
 logging.basicConfig(filename='logging.log', encoding='utf-8', level=logging.INFO)
 stream_handler = logging.StreamHandler()
@@ -195,11 +196,11 @@ class Bot:
 
     def load_users(self, update: Update, context: CallbackContext, button=None):
         user = self.user_check(update)
-        users = self.db.load_user_list(user)
         if user.admin or user.moderator:
             # full_message = self.pages_handler(users, 'load_users', button)
             full_message = self.load_users_set(update, context, button)
         else:
+            users = self.db.load_user_list(user)
             full_message = self.pages_handler(users, 'load_users', button)
         if button:
             return full_message
@@ -313,8 +314,8 @@ class Bot:
                             context.bot.send_message(update.effective_chat.id, 'Как-нибудь в другой раз')
                         elif self.events[event_id].status == 'open':
                             return self.roll(update, context, event_id, user)
-                        else:
-                            return self.load_events(update, context, return_button)
+                    else:
+                        return self.load_events(update, context, return_button)
                 elif button[2] == 'close' and (user.admin or user.moderator):
                     self.db.close_event(event, user)
                     self.users = defaultdict(def_value)
@@ -361,31 +362,29 @@ class Bot:
                 rolls.append(random.randint(1, 100))
             if user.roll_multiplier < 0:
                 sorted_rolls = sorted(rolls)
-                bonus = f'({user.roll_multiplier})'
+            #     bonus = f'({user.roll_multiplier})'
             else:
-                if user.roll_multiplier != 0:
-                    bonus = f'(+{user.roll_multiplier})'
-                else:
-                    bonus = ''
+                #     if user.roll_multiplier != 0:
+                #         bonus = f'(+{user.roll_multiplier})'
+                #     else:
+                #         bonus = ''
                 sorted_rolls = sorted(rolls, reverse=True)
             result_roll = sorted_rolls[0]
-            another_rolls = f'Бросок{bonus}: '
-            for another_roll in rolls:
-                another_rolls += f'∙{another_roll}'
-            context.bot.send_message(
-                update.effective_chat.id,
-                f'{another_rolls}',
-                reply_markup=markups['message_delete'](f'🎲 {sorted_rolls[0]} {user.username}')
-            )
+            # another_rolls = f'Бросок{bonus}: '
+            # for another_roll in rolls:
+            #     another_rolls += f'∙{another_roll}'
+            # context.bot.send_message(
+            #     update.effective_chat.id,
+            #     f'{another_rolls}',
+            #     reply_markup=markups['message_delete'](f'🎲 {sorted_rolls[0]} {user.username}')
+            # )
             log.info(f'{datetime.datetime.now()} roll: {sorted_rolls} :{user.user_id}:{user.username}')
+            button = ['load_events', event_id, 'load']
             if user.user_id in event.users:
                 if user.reroll > 0:
                     user.reroll -= 1
                     user.save()
-                    if event.users[user.user_id]['roll'] > result_roll:
-                        return None
             self.db.registration(event, user, result_roll, cancel=False)
-            button = ['load_events', event_id, 'load']
             return self.load_events(update, context, button)
 
     def event_message(self, user, event):

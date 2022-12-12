@@ -56,12 +56,7 @@ class DatabaseManager:
             for database_user in database_user_list:
                 if (database_user.registration or database_user.admin or database_user.moderator) or \
                         (user.admin or user.moderator) or database_user.roll_multiplier != 0:
-                    if user.admin or user.moderator:
-                        at = '@'
-                    else:
-                        at = ''
-                    line = f'\n{database_user.roll_multiplier}⇧{database_user.reroll}♡' \
-                           f'{len(database_user.registration)}✎: {at}{database_user.username}'
+                    line = f'\n{len(database_user.registration)}✐: {database_user.username}'
                     if database_user.admin:
                         line += f' ♚'
                     elif database_user.moderator:
