@@ -94,7 +94,7 @@ class Bot:
         if user.user_id == DEFAULT_ADMIN_ID:
             user.admin = True
             user.moderator = True
-            user.roll_multiplier = -1
+            # user.roll_multiplier = -1
             # user.reroll = 9999
             user.save()
         self.users[user.user_id] = user
@@ -412,11 +412,11 @@ class Bot:
             for num, active_user in enumerate(active_users):
                 user = active_user
                 user_roll = event.users[user]['roll']
-                username = event.users[user]['username']
-                if message_user.admin or message_user.moderator:
-                    username = '@' + username
+                username = '@' + event.users[user]['username']
+                # if message_user.admin or message_user.moderator:
+                #     username = '@' + username
                 if user == message_user.user_id:
-                    you = '⊢ '
+                    you = '➣'
                 else:
                     you = ''
                 if num < event.attendees:
@@ -426,7 +426,7 @@ class Bot:
                         users_rolls += f'\n⋮\n{you}{num + 1} ≺{user_roll}≻ {username}'
             users_rolls += '\n⋮'
 
-        message = f'{event.title}\n∙ {event.attendees} мест {event.date.day}.{event.date.month}.{event.date.year}' \
+        message = f'{event.title}\nツ {event.attendees} мест {event.date.day}.{event.date.month}.{event.date.year}' \
                   f'{event_info}{users_rolls}'
         return message
 

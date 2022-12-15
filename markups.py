@@ -247,12 +247,19 @@ def load_users_set(users, button):
     for num, user in enumerate(users):
         status = ''
         if user.admin:
-            status += f'♚'
+            status += '♚'
         elif user.moderator:
-            status += f'♔'
+            status += '♔'
         if user.ban:
-            status += f'✖'
-        button_text = f'{num + 1}: {user.roll_multiplier}⇧ {user.reroll}♡ {len(user.registration)}✐ {status}: ' \
+            ban = '✖'
+        else:
+            ban = '✐'
+        if user.fix:
+            fix = f'❅'
+        else:
+            fix = f'⇧'
+
+        button_text = f'{num + 1}: {user.roll_multiplier}{fix} {user.reroll}♡ {len(user.registration)}{ban} {status}: ' \
                       f'{user.username}' + '.' * 100
         buttons.append([InlineKeyboardButton(button_text, callback_data=f'load_users load {user.user_id}')])
     button_pages = [[]]
